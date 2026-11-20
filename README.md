@@ -1,10 +1,23 @@
 # ModelFit
 
+[![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](pyproject.toml)
+[![MIT License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+[![Python tests](https://github.com/Dhruvkp07/ModelFit/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhruvkp07/ModelFit/actions/workflows/ci.yml)
+[![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-brightgreen)](CONTRIBUTING.md)
+
 **Check which local AI models may fit your computer.**
 
-ModelFit is a small, open-source Python command-line tool. It reads available RAM and, when supported, NVIDIA free VRAM, then estimates which models from an offline catalog might run locally.
+ModelFit is an open-source **local LLM hardware compatibility checker** for developers running AI models with **Ollama**. This lightweight Python CLI checks available system RAM and supported NVIDIA GPU VRAM, then estimates which local language models may fit. No API key or account is needed.
 
 **Status: v0.1 alpha.** ModelFit provides approximate **memory-fit guidance**, not verified benchmarks, model quality rankings, tokens/second predictions, or guarantees.
+
+## Why ModelFit?
+
+- **Local AI readiness:** compare your computer's available RAM and VRAM with a sourced catalog of Ollama models.
+- **Developer-friendly CLI:** use readable terminal output or JSON in scripts.
+- **Community-driven:** contribute hardware backends, model records, documentation, and tests.
+
+ModelFit is not affiliated with or endorsed by Ollama. Compatibility results are estimates, not benchmark guarantees.
 
 ## Quick start
 
