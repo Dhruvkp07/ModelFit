@@ -1,0 +1,18 @@
+name: Feature request
+description: Suggest a useful enhancement to ModelFit.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Suggested behavior
+      description: Show a short CLI example if useful.
+    validations:
+      required: true
