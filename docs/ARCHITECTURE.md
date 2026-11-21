@@ -35,6 +35,8 @@ flowchart TD
 ## Data flow
 Hardware probe and bundled catalog feed the estimator. The CLI formats the results. Machine identification stays local; it is not sent to third-party services.
 
+The `estimate` command also accepts a user-supplied download size and label, passing them to the same estimator without changing the bundled catalog or contacting a registry.
+
 ## Future expansion points
 Hardware backends can be added behind the detect_hardware interface. Estimators can become profile-driven or calibrated against opt-in benchmarks. Catalog sources can support explicit import/update commands without compromising default offline behavior. These are roadmap ideas, not implemented interfaces.
 

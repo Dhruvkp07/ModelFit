@@ -6,6 +6,7 @@ are approximations for a starter CLI, not measurements or benchmark claims.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import math
 
 from .hardware import Hardware
 
@@ -30,8 +31,8 @@ class FitResult:
 
 
 def estimated_memory_gib(download_gb: float) -> float:
-    if download_gb <= 0:
-        raise ValueError("Model download size must be positive.")
+    if not math.isfinite(download_gb) or download_gb <= 0:
+        raise ValueError("Model download size must be finite and positive.")
     return round(download_gb * MEMORY_MULTIPLIER + OVERHEAD_GIB, 2)
 
 
@@ -47,7 +48,12 @@ def assess(model: dict, hardware: Hardware) -> FitResult:
         reason = "Estimated memory fits currently available system RAM; CPU inference may be slow."
     else:
         status = "unlikely"
-        reason = "Estimated memory exceeds currently available RAM and detected free VRAM."
+        if gpu_free is not None and gpu_free >= required and available < MIN_GPU_HOST_RAM_GIB:
+            reason = "GPU VRAM may fit, but available host RAM is below the 1 GiB reserve."
+        elif gpu_free is None:
+            reason = "Estimated memory exceeds available RAM; supported GPU VRAM was not detected."
+        else:
+            reason = "Estimated memory exceeds currently available RAM and detected free VRAM."
     return FitResult(
         name=model["name"],
         download_gb=float(model["download_gb"]),

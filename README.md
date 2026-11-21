@@ -47,11 +47,14 @@ modelfit                   # scan hardware and recommend models
 modelfit scan              # show hardware only
 modelfit models            # show the included public model catalog
 modelfit check qwen3:4b    # assess a specific model
+modelfit estimate 4.5 --name my-model  # estimate an unlisted model by download size (GB)
 modelfit recommend --json  # machine-readable JSON for scripts
 modelfit recommend --ram-gb 8 --vram-gb 6  # simulate available memory
 ~~~
 
 **Simulation note:** --ram-gb and --vram-gb override *available* RAM/free VRAM, not installed capacity. Use them to explore another device, not to measure it.
+
+For models outside the catalog, `estimate` uses the download size you supply in decimal GB. It does not verify the model, its quantization, or its source; the same rough heuristic and limitations apply.
 
 ## How recommendations work
 
