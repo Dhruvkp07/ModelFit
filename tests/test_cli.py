@@ -52,3 +52,22 @@ def test_negative_override_errors(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         cli.main(["scan", "--ram-gb", "-1"])
     assert exc.value.code == 2
+
+
+def test_estimate_custom_model(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "detect_hardware", mock_machine)
+    assert cli.main(["estimate", "2", "--name", "my-model", "--ram-gb", "8", "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)["results"][0]
+    assert result["name"] == "my-model"
+    assert result["estimated_memory_gib"] == 3.15
+    assert result["status"] == "likely_cpu"
+
+
+@pytest.mark.parametrize("args", [
+    ["scan", "--ram-gb", "nan"], ["scan", "--vram-gb", "inf"],
+    ["estimate", "nan"], ["estimate", "0"], ["estimate", "inf"],
+])
+def test_reject_non_finite_and_invalid_inputs(args):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(args)
+    assert exc.value.code == 2

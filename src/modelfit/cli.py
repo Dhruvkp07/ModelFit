@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import replace
 import json
+import math
 
 from .catalog import load_catalog
 from .estimator import assess, recommend
@@ -22,14 +23,17 @@ def build_parser() -> argparse.ArgumentParser:
         description="Check which local Ollama models might fit your computer.",
     )
     sub = parser.add_subparsers(dest="command")
-    for name in ("recommend", "scan", "check", "models"):
+    for name in ("recommend", "scan", "check", "models", "estimate"):
         command = sub.add_parser(name)
         command.add_argument("--json", action="store_true", help="Machine-readable output")
-        if name in ("recommend", "scan", "check"):
+        if name in ("recommend", "scan", "check", "estimate"):
             command.add_argument("--ram-gb", type=float, help="Override available RAM (GiB)")
             command.add_argument("--vram-gb", type=float, help="Override free VRAM (GiB)")
         if name == "check":
             command.add_argument("model", help="Exact model tag, e.g. qwen3:4b")
+        if name == "estimate":
+            command.add_argument("size_gb", type=float, help="Model download size in decimal GB")
+            command.add_argument("--name", default="custom model", help="Label for this estimate")
     return parser
 
 
@@ -50,8 +54,10 @@ def main(argv: list[str] | None = None) -> int:
 
     ram = getattr(args, "ram_gb", None)
     vram = getattr(args, "vram_gb", None)
-    if any(n is not None and n < 0 for n in (ram, vram)):
-        parser.error("Memory overrides must be zero or positive.")
+    if any(n is not None and (not math.isfinite(n) or n < 0) for n in (ram, vram)):
+        parser.error("Memory overrides must be finite and zero or positive.")
+    if command == "estimate" and (not math.isfinite(args.size_gb) or args.size_gb <= 0):
+        parser.error("Model download size must be finite and positive.")
 
     hardware = detect_hardware()
     simulated = ram is not None or vram is not None
@@ -73,6 +79,8 @@ def main(argv: list[str] | None = None) -> int:
         results = [assess(matches[0], hardware)]
     elif command == "recommend":
         results = recommend(load_catalog(), hardware)
+    elif command == "estimate":
+        results = [assess({"name": args.name, "download_gb": args.size_gb, "source": "user supplied"}, hardware)]
 
     if json_mode:
         print(json.dumps({

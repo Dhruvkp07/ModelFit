@@ -1,9 +1,9 @@
 # ModelFit | living project handoff
 
-Last updated: 2026-11-20
+Last updated: 2026-11-21
 Phase: Day 1, v0.1 alpha MVP
 Main repository: https://github.com/Dhruvkp07/ModelFit
-Development branch: feat/model-fit-mvp (merge when verified)
+Development branch: see current Git history
 
 ## Mission
 Help anyone quickly estimate which local Ollama LLMs might fit their computer, without requiring API keys, online lookups, or a complex UI.
@@ -16,6 +16,7 @@ Help anyone quickly estimate which local Ollama LLMs might fit their computer, w
 - scan, models, recommend, and check commands, plus JSON output and simulation overrides.
 - CI/test and contribution scaffolding.
 - Durable module map and optional Graphify setup instructions.
+- Custom model estimation from a user-supplied download size, finite input validation, and clearer insufficient-memory explanations.
 
 ## Exclusions / unfinished
 - AMD/Intel/Apple accelerated memory detection.
