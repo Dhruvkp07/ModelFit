@@ -93,3 +93,38 @@ def test_estimate_rejects_overflow(monkeypatch, capsys):
         cli.main(["estimate", "1.7e308", "--json"])
     assert exc.value.code == 2
     assert "numeric range" in capsys.readouterr().err
+
+
+def test_gguf_compares_local_models_in_input_order(tmp_path, monkeypatch, capsys):
+    import struct
+
+    monkeypatch.setattr(cli, "detect_hardware", mock_machine)
+    paths = [tmp_path / "models with spaces" / "large.gguf", tmp_path / "small.gguf"]
+    paths[0].parent.mkdir()
+    for path, size, version, endian in zip(paths, (4096, 1024), (3, 2), (">", "<")):
+        header = b"GGUF" + struct.pack(f"{endian}IQQ", version, 1, 0)
+        path.write_bytes(header.ljust(size, b"\x00"))
+
+    assert cli.main(["gguf", *map(str, paths), "--extra-memory-gib", "1", "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    assert [file["size_bytes"] for file in report["gguf_files"]] == [4096, 1024]
+    assert [file["gguf_version"] for file in report["gguf_files"]] == [3, 2]
+    assert [row["name"] for row in report["results"]] == ["large.gguf", "small.gguf"]
+    assert report["results"][0]["estimated_memory_gib"] > report["results"][1]["estimated_memory_gib"]
+    assert report["results"][1]["estimated_memory_gib"] > 1.75
+
+
+@pytest.mark.parametrize(("name", "content", "error"), [
+    ("model.gguf", b"GGUF", "incomplete GGUF header"),
+    ("model.gguf", b"GGUF\x03" + b"\x00" * 19, "truncated file"),
+    ("model-00001-of-00002.gguf", b"", "Split GGUF"),
+])
+def test_gguf_reports_invalid_files(name, content, error, tmp_path, capsys):
+    path = tmp_path / name
+    path.write_bytes(content)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["gguf", str(path), "--json"])
+    assert exc.value.code == 2
+    report = capsys.readouterr()
+    assert error in report.err
+    assert report.out == ""
