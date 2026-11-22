@@ -59,7 +59,7 @@ def test_estimate_custom_model(monkeypatch, capsys):
     assert cli.main(["estimate", "2", "--name", "my-model", "--ram-gb", "8", "--json"]) == 0
     result = json.loads(capsys.readouterr().out)["results"][0]
     assert result["name"] == "my-model"
-    assert result["estimated_memory_gib"] == 3.15
+    assert result["estimated_memory_gib"] == pytest.approx(2_000_000_000 / 2**30 * 1.2 + 0.75)
     assert result["status"] == "likely_cpu"
 
 
@@ -71,3 +71,25 @@ def test_reject_non_finite_and_invalid_inputs(args):
     with pytest.raises(SystemExit) as exc:
         cli.main(args)
     assert exc.value.code == 2
+
+
+def test_fits_only_respects_extra_memory_allowance(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "detect_hardware", mock_machine)
+    args = ["recommend", "--fits-only", "--ram-gb", "3", "--vram-gb", "0", "--json"]
+    assert cli.main(args) == 0
+    baseline = json.loads(capsys.readouterr().out)
+    assert baseline["results"]
+    assert all(row["status"] == "likely_cpu" for row in baseline["results"])
+
+    assert cli.main(args + ["--extra-memory-gib", "3"]) == 0
+    reserved = json.loads(capsys.readouterr().out)
+    assert reserved["extra_memory_gib"] == 3
+    assert reserved["results"] == []
+
+
+def test_estimate_rejects_overflow(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "detect_hardware", mock_machine)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["estimate", "1.7e308", "--json"])
+    assert exc.value.code == 2
+    assert "numeric range" in capsys.readouterr().err

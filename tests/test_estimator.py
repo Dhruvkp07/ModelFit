@@ -14,7 +14,7 @@ MODEL = {"name": "test:small", "download_gb": 2.0, "source": "https://example.or
 def test_gpu_fit():
     result = assess(MODEL, machine(ram=5, vram=8))
     assert result.status == "likely_gpu"
-    assert result.estimated_memory_gib == 3.15
+    assert result.estimated_memory_gib == pytest.approx(2_000_000_000 / 2**30 * 1.2 + 0.75)
 
 
 def test_cpu_fallback_when_vram_insufficient():
@@ -55,3 +55,10 @@ def test_recommend_sorted_by_fit_and_size():
     output = recommend(models, machine(ram=4, vram=3))
     assert [item.name for item in output] == ["small", "large"]
     assert [item.status for item in output] == ["likely_gpu", "unlikely"]
+
+
+def test_fit_uses_full_precision_and_reports_shortfalls():
+    result = assess(MODEL, machine(ram=2.98, vram=2.98))
+    assert result.status == "unlikely"
+    assert -0.01 < result.ram_margin_gib < 0
+    assert result.vram_margin_gib == result.ram_margin_gib

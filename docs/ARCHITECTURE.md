@@ -37,6 +37,8 @@ Hardware probe and bundled catalog feed the estimator. The CLI formats the resul
 
 The `estimate` command also accepts a user-supplied download size and label, passing them to the same estimator without changing the bundled catalog or contacting a registry.
 
+The estimator converts decimal GB to GiB, adds the base overhead and optional user allowance, and compares unrounded values. The result includes signed RAM and VRAM margins. The CLI handles filtering and display rounding.
+
 ## Future expansion points
 Hardware backends can be added behind the detect_hardware interface. Estimators can become profile-driven or calibrated against opt-in benchmarks. Catalog sources can support explicit import/update commands without compromising default offline behavior. These are roadmap ideas, not implemented interfaces.
 
