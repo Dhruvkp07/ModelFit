@@ -46,6 +46,7 @@ pip install --upgrade --force-reinstall "git+https://github.com/Dhruvkp07/ModelF
 modelfit                   # scan hardware and recommend models
 modelfit scan              # show hardware only
 modelfit models            # show the included public model catalog
+modelfit gguf "model-q4.gguf" "model-q8.gguf" --extra-memory-gib 1
 modelfit check qwen3:4b    # assess a specific model
 modelfit estimate 4.5 --name my-model  # estimate an unlisted model by download size (GB)
 modelfit recommend --fits-only --extra-memory-gib 1  # shortlist with 1 GiB extra allowance
@@ -56,6 +57,12 @@ modelfit recommend --ram-gb 8 --vram-gb 6  # simulate available memory
 **Simulation note:** --ram-gb and --vram-gb override *available* RAM/free VRAM, not installed capacity. Use them to explore another device, not to measure it.
 
 For models outside the catalog, `estimate` uses the download size you supply in decimal GB. It does not verify the model, its quantization, or its source; the same rough heuristic and limitations apply.
+
+## Compare local GGUF files
+
+Pass one or more local GGUF paths to `modelfit gguf`. Each file gets its own estimate in input order, which lets you compare quantizations against the same hardware snapshot. The command uses the on-disk byte count and checks the fixed GGUF v2/v3 header. It reads no tensor weights. Add `--json` to capture the file details and fit results.
+
+Use complete single-file models. For a split model, sum all shard sizes in decimal GB and pass that value to `modelfit estimate`. The [GGUF header](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) check catches obvious input errors. Runtime compatibility still depends on your inference engine.
 
 ## How recommendations work
 
@@ -71,7 +78,7 @@ This deliberately simple formula is **not** actual memory profiling. Runtime ove
 
 Each fit estimate reports RAM and VRAM margins. A positive margin is memory left after the estimate, a negative margin is the shortfall, and unknown VRAM is reported as `null` in JSON. A GPU fit also requires at least 1 GiB of available host RAM. `--fits-only` keeps both likely GPU and likely CPU fits.
 
-Use `--extra-memory-gib` with `recommend`, `check`, or `estimate` to add an allowance for your planned context or runtime. The allowance is a number you choose based on your workload.
+Use `--extra-memory-gib` with `recommend`, `check`, `estimate`, or `gguf` to add an allowance for your planned context or runtime. The allowance is a number you choose based on your workload.
 
 ## Contribute
 

@@ -5,9 +5,11 @@ import argparse
 from dataclasses import replace
 import json
 import math
+from pathlib import Path
 
 from .catalog import load_catalog
 from .estimator import assess, recommend
+from .gguf import inspect_gguf
 from .hardware import detect_hardware
 
 DISCLAIMER = (
@@ -23,13 +25,13 @@ def build_parser() -> argparse.ArgumentParser:
         description="Check which local Ollama models might fit your computer.",
     )
     sub = parser.add_subparsers(dest="command")
-    for name in ("recommend", "scan", "check", "models", "estimate"):
+    for name in ("recommend", "scan", "check", "models", "estimate", "gguf"):
         command = sub.add_parser(name)
         command.add_argument("--json", action="store_true", help="Machine-readable output")
-        if name in ("recommend", "scan", "check", "estimate"):
+        if name in ("recommend", "scan", "check", "estimate", "gguf"):
             command.add_argument("--ram-gb", type=float, help="Override available RAM (GiB)")
             command.add_argument("--vram-gb", type=float, help="Override free VRAM (GiB)")
-        if name in ("recommend", "check", "estimate"):
+        if name in ("recommend", "check", "estimate", "gguf"):
             command.add_argument(
                 "--extra-memory-gib", type=float, default=0,
                 help="Add a memory allowance in GiB for your runtime or context",
@@ -41,6 +43,8 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "estimate":
             command.add_argument("size_gb", type=float, help="Model download size in decimal GB")
             command.add_argument("--name", default="custom model", help="Label for this estimate")
+        if name == "gguf":
+            command.add_argument("files", type=Path, nargs="+", help="Local single-file GGUF models")
     return parser
 
 
@@ -70,6 +74,14 @@ def main(argv: list[str] | None = None) -> int:
     if not math.isfinite(extra_memory) or extra_memory < 0:
         parser.error("Extra memory must be finite and zero or positive.")
 
+    local_models = []
+    if command == "gguf":
+        for path in args.files:
+            try:
+                local_models.append(inspect_gguf(path))
+            except (OSError, ValueError) as exc:
+                parser.error(f"{path}: {exc}")
+
     hardware = detect_hardware()
     simulated = ram is not None or vram is not None
     if ram is not None:
@@ -98,15 +110,20 @@ def main(argv: list[str] | None = None) -> int:
             results = [assess(model, hardware, extra_memory_gib=extra_memory)]
         except ValueError as exc:
             parser.error(str(exc))
+    elif command == "gguf":
+        results = [assess(model, hardware, extra_memory_gib=extra_memory) for model in local_models]
 
     if json_mode:
-        print(json.dumps({
+        payload = {
             "hardware": hardware.to_dict(),
             "simulated": simulated,
             "extra_memory_gib": extra_memory,
             "results": [r.to_dict() for r in results],
             "disclaimer": DISCLAIMER,
-        }, indent=2))
+        }
+        if local_models:
+            payload["gguf_files"] = local_models
+        print(json.dumps(payload, indent=2))
         return 0
 
     print("ModelFit 0.1 | Local model memory estimator")
@@ -125,7 +142,10 @@ def main(argv: list[str] | None = None) -> int:
         print("No catalog models matched the selected fit filter.")
     if results:
         print()
-        for item in results:
+        for index, item in enumerate(results):
+            if local_models:
+                model = local_models[index]
+                print(f"{model['path']} | GGUF v{model['gguf_version']} | {model['size_bytes']:,} bytes")
             vram_margin = (
                 "unknown" if item.vram_margin_gib is None else f"{item.vram_margin_gib:+.2f} GiB"
             )

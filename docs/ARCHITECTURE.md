@@ -27,6 +27,7 @@ flowchart TD
 | src/modelfit/hardware.py | Probe CPU, available RAM and supported GPU free VRAM | Adding hardware detection |
 | src/modelfit/catalog.py | Load and validate versioned bundled metadata | Changing catalog schema |
 | src/modelfit/data/models.json | Named, sourced Ollama model sizes | Updating model listings |
+| src/modelfit/gguf.py | Read the local file size and check the fixed GGUF header | Adding format checks |
 | src/modelfit/estimator.py | Estimate memory and classify fits | Changing estimation logic |
 | tests/ | Test simulated devices and parser behavior | Any behavior change |
 | docs/PROJECT_STATE.md | Living decisions, progress, next steps | Every work session |
@@ -36,6 +37,8 @@ flowchart TD
 Hardware probe and bundled catalog feed the estimator. The CLI formats the results. Machine identification stays local; it is not sent to third-party services.
 
 The `estimate` command also accepts a user-supplied download size and label, passing them to the same estimator without changing the bundled catalog or contacting a registry.
+
+The `gguf` command supplies measured file sizes to the same estimator and uses a single hardware snapshot for all files.
 
 The estimator converts decimal GB to GiB, adds the base overhead and optional user allowance, and compares unrounded values. The result includes signed RAM and VRAM margins. The CLI handles filtering and display rounding.
 
