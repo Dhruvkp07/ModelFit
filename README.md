@@ -48,6 +48,7 @@ modelfit scan              # show hardware only
 modelfit models            # show the included public model catalog
 modelfit check qwen3:4b    # assess a specific model
 modelfit estimate 4.5 --name my-model  # estimate an unlisted model by download size (GB)
+modelfit recommend --fits-only --extra-memory-gib 1  # shortlist with 1 GiB extra allowance
 modelfit recommend --json  # machine-readable JSON for scripts
 modelfit recommend --ram-gb 8 --vram-gb 6  # simulate available memory
 ~~~
@@ -61,24 +62,16 @@ For models outside the catalog, `estimate` uses the download size you supply in 
 1. Read currently available system RAM using psutil.
 2. Query NVIDIA GPU free VRAM using nvidia-smi when available. Multiple GPUs are evaluated individually; their memory is **not** added.
 3. Read the versioned model catalog (official Ollama download-size listings, snapshot 2026-11-20).
-4. Estimate working memory with an explicit starter heuristic: **download GB × 1.2 + 0.75 GiB**.
+4. Estimate working memory with an explicit starter heuristic: **download size converted to GiB × 1.2 + 0.75 GiB + optional extra allowance**.
 5. Classify as **likely_gpu**, **likely_cpu**, or **unlikely**, based on currently available memory.
 
 This deliberately simple formula is **not** actual memory profiling. Runtime overhead, context length, architecture, quantization, KV cache, drivers, memory sharing, and background programs can change the result significantly. CPU fit does not imply acceptable speed. Non-NVIDIA accelerators are not yet detected automatically. ModelFit never downloads a model or calls an AI API.
 
-## Example
+## Read the result
 
-~~~text
-ModelFit 0.1 | Local model memory estimator
-RAM: 11.20 GiB available / 15.70 GiB total
-GPU: NVIDIA ...; 5.40 GiB VRAM free
+Each fit estimate reports RAM and VRAM margins. A positive margin is memory left after the estimate, a negative margin is the shortfall, and unknown VRAM is reported as `null` in JSON. A GPU fit also requires at least 1 GiB of available host RAM. `--fits-only` keeps both likely GPU and likely CPU fits.
 
-qwen3:0.6b   1.38 GiB likely_gpu   ...
-qwen3:4b     3.75 GiB likely_gpu   ...
-qwen3:8b     6.99 GiB likely_cpu   ...
-~~~
-
-Illustration only; your output depends on your hardware and active memory use.
+Use `--extra-memory-gib` with `recommend`, `check`, or `estimate` to add an allowance for your planned context or runtime. The allowance is a number you choose based on your workload.
 
 ## Contribute
 

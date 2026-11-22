@@ -6,6 +6,7 @@ Unknown accelerators are not assumed to have zero VRAM.
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
+import math
 import os
 import platform
 import subprocess
@@ -55,7 +56,7 @@ def detect_nvidia_gpu() -> tuple[str, float, float] | None:
             name, total_mib, free_mib = [item.strip() for item in line.rsplit(",", 2)]
             total = float(total_mib) / 1024
             free = float(free_mib) / 1024
-            if total > 0 and 0 <= free <= total:
+            if math.isfinite(total) and total > 0 and 0 <= free <= total:
                 candidates.append((name, total, free))
         except (ValueError, TypeError):
             continue
@@ -69,9 +70,9 @@ def detect_hardware() -> Hardware:
         os=platform.platform(),
         cpu=platform.processor() or platform.machine() or "Unknown CPU",
         logical_cores=os.cpu_count() or 1,
-        total_ram_gib=round(memory.total / GIB, 2),
-        available_ram_gib=round(memory.available / GIB, 2),
+        total_ram_gib=memory.total / GIB,
+        available_ram_gib=memory.available / GIB,
         gpu_name=gpu[0] if gpu else None,
-        total_vram_gib=round(gpu[1], 2) if gpu else None,
-        free_vram_gib=round(gpu[2], 2) if gpu else None,
+        total_vram_gib=gpu[1] if gpu else None,
+        free_vram_gib=gpu[2] if gpu else None,
     )

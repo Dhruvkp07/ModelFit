@@ -15,7 +15,7 @@ These figures are **not memory benchmarks**. Different tag variants/quantization
 Model size on disk gives a rough starting point but does not account for runtime, KV cache, context, allocator fragmentation or system interference. Day-one estimator:
 
 ~~~text
-estimated_memory_gib = (published_download_gb * 1.2) + 0.75
+estimated_memory_gib = (published_download_gb * 10**9 / 2**30 * 1.2) + 0.75 + extra_memory_gib
 ~~~
 
 This formula is an openly editable heuristic, **not a validated predictive model**. The fixed overhead and factor are conservative engineering guesses. A 'likely_gpu' result requires free VRAM on one detected NVIDIA GPU plus at least 1 GiB of available system RAM. 'likely_cpu' requires sufficient available system RAM. An 'unlikely' result means neither test passed, not impossibility.

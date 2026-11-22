@@ -29,6 +29,13 @@ def build_parser() -> argparse.ArgumentParser:
         if name in ("recommend", "scan", "check", "estimate"):
             command.add_argument("--ram-gb", type=float, help="Override available RAM (GiB)")
             command.add_argument("--vram-gb", type=float, help="Override free VRAM (GiB)")
+        if name in ("recommend", "check", "estimate"):
+            command.add_argument(
+                "--extra-memory-gib", type=float, default=0,
+                help="Add a memory allowance in GiB for your runtime or context",
+            )
+        if name == "recommend":
+            command.add_argument("--fits-only", action="store_true", help="Hide unlikely fits")
         if name == "check":
             command.add_argument("model", help="Exact model tag, e.g. qwen3:4b")
         if name == "estimate":
@@ -59,10 +66,14 @@ def main(argv: list[str] | None = None) -> int:
     if command == "estimate" and (not math.isfinite(args.size_gb) or args.size_gb <= 0):
         parser.error("Model download size must be finite and positive.")
 
+    extra_memory = getattr(args, "extra_memory_gib", 0)
+    if not math.isfinite(extra_memory) or extra_memory < 0:
+        parser.error("Extra memory must be finite and zero or positive.")
+
     hardware = detect_hardware()
     simulated = ram is not None or vram is not None
     if ram is not None:
-        hardware = replace(hardware, available_ram_gib=ram)
+        hardware = replace(hardware, available_ram_gib=ram, total_ram_gib=max(ram, hardware.total_ram_gib))
     if vram is not None:
         hardware = replace(
             hardware,
@@ -76,16 +87,23 @@ def main(argv: list[str] | None = None) -> int:
         matches = [m for m in load_catalog() if m["name"].lower() == args.model.lower()]
         if not matches:
             parser.error("Unknown model tag. Run 'modelfit models' for supported tags.")
-        results = [assess(matches[0], hardware)]
+        results = [assess(matches[0], hardware, extra_memory_gib=extra_memory)]
     elif command == "recommend":
-        results = recommend(load_catalog(), hardware)
+        results = recommend(load_catalog(), hardware, extra_memory_gib=extra_memory)
+        if getattr(args, "fits_only", False):
+            results = [item for item in results if item.status != "unlikely"]
     elif command == "estimate":
-        results = [assess({"name": args.name, "download_gb": args.size_gb, "source": "user supplied"}, hardware)]
+        model = {"name": args.name, "download_gb": args.size_gb, "source": "user supplied"}
+        try:
+            results = [assess(model, hardware, extra_memory_gib=extra_memory)]
+        except ValueError as exc:
+            parser.error(str(exc))
 
     if json_mode:
         print(json.dumps({
             "hardware": hardware.to_dict(),
             "simulated": simulated,
+            "extra_memory_gib": extra_memory,
             "results": [r.to_dict() for r in results],
             "disclaimer": DISCLAIMER,
         }, indent=2))
@@ -101,13 +119,21 @@ def main(argv: list[str] | None = None) -> int:
         print("GPU: not detected (NVIDIA nvidia-smi only; CPU fallback)")
     if simulated:
         print("SIMULATION: memory availability overridden by command-line values")
+    if extra_memory:
+        print(f"Extra memory allowance: {extra_memory:g} GiB")
+    if command == "recommend" and not results:
+        print("No catalog models matched the selected fit filter.")
     if results:
         print()
         for item in results:
+            vram_margin = (
+                "unknown" if item.vram_margin_gib is None else f"{item.vram_margin_gib:+.2f} GiB"
+            )
             print(
                 f"{item.name:<20} {item.estimated_memory_gib:>6.2f} GiB "
                 f"{item.status:<12} {item.reason}"
             )
+            print(f"  Memory margin: RAM {item.ram_margin_gib:+.2f} GiB, VRAM {vram_margin}")
     print()
     print(DISCLAIMER)
     return 0
