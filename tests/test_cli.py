@@ -128,3 +128,29 @@ def test_gguf_reports_invalid_files(name, content, error, tmp_path, capsys):
     report = capsys.readouterr()
     assert error in report.err
     assert report.out == ""
+
+
+def test_split_gguf_estimates_all_shards_once(tmp_path, monkeypatch, capsys):
+    import struct
+
+    monkeypatch.setattr(cli, "detect_hardware", mock_machine)
+    first, second = (tmp_path / f"model-{idx:05d}-of-00002.gguf" for idx in (1, 2))
+    header = b"GGUF" + struct.pack("<IQQ", 3, 1, 0)
+    first.write_bytes(header.ljust(1024, b"\x00"))
+    second.write_bytes(header.ljust(4096, b"\x00"))
+    assert cli.main(["gguf", str(second), str(first), "--json"]) == 0
+    report = json.loads(capsys.readouterr().out)
+    model, = report["gguf_files"]
+    result, = report["results"]
+    assert model["size_bytes"] == 5120
+    assert model["shard_count"] == 2
+    assert [shard["path"] for shard in model["shards"]] == [str(first), str(second)]
+    assert result["download_gb"] == 5120 / 10**9
+
+    second.unlink()
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["gguf", str(first), "--json"])
+    assert exc.value.code == 2
+    captured = capsys.readouterr()
+    assert second.name in captured.err
+    assert not captured.out
