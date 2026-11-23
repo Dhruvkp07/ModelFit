@@ -38,7 +38,7 @@ Hardware probe and bundled catalog feed the estimator. The CLI formats the resul
 
 The `estimate` command also accepts a user-supplied download size and label, passing them to the same estimator without changing the bundled catalog or contacting a registry.
 
-The `gguf` command supplies measured file sizes to the same estimator and uses a single hardware snapshot for all files.
+The `gguf` command supplies measured file sizes to the same estimator and uses a single hardware snapshot for all models. For split files it groups numbered siblings, checks each fixed header, and sums their sizes before estimation.
 
 The estimator converts decimal GB to GiB, adds the base overhead and optional user allowance, and compares unrounded values. The result includes signed RAM and VRAM margins. The CLI handles filtering and display rounding.
 

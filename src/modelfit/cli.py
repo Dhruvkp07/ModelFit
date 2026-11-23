@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .catalog import load_catalog
 from .estimator import assess, recommend
-from .gguf import inspect_gguf
+from .gguf import gguf_model_key, inspect_gguf_model
 from .hardware import detect_hardware
 
 DISCLAIMER = (
@@ -44,7 +44,7 @@ def build_parser() -> argparse.ArgumentParser:
             command.add_argument("size_gb", type=float, help="Model download size in decimal GB")
             command.add_argument("--name", default="custom model", help="Label for this estimate")
         if name == "gguf":
-            command.add_argument("files", type=Path, nargs="+", help="Local single-file GGUF models")
+            command.add_argument("files", type=Path, nargs="+", help="Local GGUF models or any shard of a split model")
     return parser
 
 
@@ -76,10 +76,14 @@ def main(argv: list[str] | None = None) -> int:
 
     local_models = []
     if command == "gguf":
+        seen_models = set()
         for path in args.files:
             try:
-                local_models.append(inspect_gguf(path))
-            except (OSError, ValueError) as exc:
+                key = gguf_model_key(path)
+                if key not in seen_models:
+                    local_models.append(inspect_gguf_model(path))
+                    seen_models.add(key)
+            except (OSError, RuntimeError, ValueError) as exc:
                 parser.error(f"{path}: {exc}")
 
     hardware = detect_hardware()
@@ -145,7 +149,10 @@ def main(argv: list[str] | None = None) -> int:
         for index, item in enumerate(results):
             if local_models:
                 model = local_models[index]
-                print(f"{model['path']} | GGUF v{model['gguf_version']} | {model['size_bytes']:,} bytes")
+                details = f"{model['path']} | GGUF v{model['gguf_version']} | {model['size_bytes']:,} bytes"
+                if "shard_count" in model:
+                    details += f" across {model['shard_count']} shards"
+                print(details)
             vram_margin = (
                 "unknown" if item.vram_margin_gib is None else f"{item.vram_margin_gib:+.2f} GiB"
             )

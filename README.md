@@ -60,9 +60,9 @@ For models outside the catalog, `estimate` uses the download size you supply in 
 
 ## Compare local GGUF files
 
-Pass one or more local GGUF paths to `modelfit gguf`. Each file gets its own estimate in input order, which lets you compare quantizations against the same hardware snapshot. The command uses the on-disk byte count and checks the fixed GGUF v2/v3 header. It reads no tensor weights. Add `--json` to capture the file details and fit results.
+Pass one or more local GGUF paths to `modelfit gguf`. Each model gets its own estimate in input order, which lets you compare quantizations against the same hardware snapshot. The command uses the on-disk byte count and checks the fixed GGUF v2/v3 header. It reads no tensor weights. Add `--json` to capture the file details and fit results.
 
-Use complete single-file models. For a split model, sum all shard sizes in decimal GB and pass that value to `modelfit estimate`. The [GGUF header](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md) check catches obvious input errors. Runtime compatibility still depends on your inference engine.
+For a split model, pass any shard, for example `modelfit gguf "model-00002-of-00003.gguf"`. ModelFit finds the other numbered shards in the same folder and estimates their combined size once. Missing shards stop the estimate. JSON includes the individual shard paths and sizes. Grouping follows the [GGUF filename convention](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md), and header checks catch basic format errors. Runtime compatibility depends on your inference engine.
 
 ## How recommendations work
 

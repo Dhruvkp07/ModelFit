@@ -1,6 +1,6 @@
 # ModelFit | living project handoff
 
-Last updated: 2026-11-22
+Last updated: 2026-11-23
 Phase: v0.1 alpha
 Main repository: https://github.com/Dhruvkp07/ModelFit
 Development branch: see current Git history
@@ -19,7 +19,7 @@ Help anyone quickly estimate which local Ollama LLMs might fit their computer, w
 - Custom model estimation from a user-supplied download size, finite input validation, and clearer insufficient-memory explanations.
 - Unit-correct memory estimates, RAM/VRAM margins, manual extra memory allowance, and a likely-fit filter.
 
-- Offline comparison of local single-file GGUF models from actual file sizes and v2/v3 header details.
+- Offline comparison of local single-file and conventionally named split GGUF models from actual file sizes and v2/v3 header details.
 
 ## Exclusions / unfinished
 - AMD/Intel/Apple accelerated memory detection.
