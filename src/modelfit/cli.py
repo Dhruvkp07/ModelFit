@@ -33,6 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
             command.add_argument("--vram-gb", type=float, help="Override free VRAM (GiB)")
         if name in ("recommend", "check", "estimate", "gguf"):
             command.add_argument(
+                "--target", choices=("auto", "cpu", "gpu"), default="auto",
+                help="Evaluate CPU or full-GPU inference only (default: auto)",
+            )
+            command.add_argument(
                 "--extra-memory-gib", type=float, default=0,
                 help="Add a memory allowance in GiB for your runtime or context",
             )
@@ -98,24 +102,28 @@ def main(argv: list[str] | None = None) -> int:
             gpu_name=hardware.gpu_name or ("Simulated NVIDIA GPU" if vram > 0 else None),
         )
 
+    target = getattr(args, "target", "auto")
     results = []
     if command == "check":
         matches = [m for m in load_catalog() if m["name"].lower() == args.model.lower()]
         if not matches:
             parser.error("Unknown model tag. Run 'modelfit models' for supported tags.")
-        results = [assess(matches[0], hardware, extra_memory_gib=extra_memory)]
+        results = [assess(matches[0], hardware, extra_memory_gib=extra_memory, target=target)]
     elif command == "recommend":
-        results = recommend(load_catalog(), hardware, extra_memory_gib=extra_memory)
+        results = recommend(load_catalog(), hardware, extra_memory_gib=extra_memory, target=target)
         if getattr(args, "fits_only", False):
             results = [item for item in results if item.status != "unlikely"]
     elif command == "estimate":
         model = {"name": args.name, "download_gb": args.size_gb, "source": "user supplied"}
         try:
-            results = [assess(model, hardware, extra_memory_gib=extra_memory)]
+            results = [assess(model, hardware, extra_memory_gib=extra_memory, target=target)]
         except ValueError as exc:
             parser.error(str(exc))
     elif command == "gguf":
-        results = [assess(model, hardware, extra_memory_gib=extra_memory) for model in local_models]
+        results = [
+            assess(model, hardware, extra_memory_gib=extra_memory, target=target)
+            for model in local_models
+        ]
 
     if json_mode:
         payload = {
@@ -125,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
             "results": [r.to_dict() for r in results],
             "disclaimer": DISCLAIMER,
         }
+        if target != "auto":
+            payload["target"] = target
         if local_models:
             payload["gguf_files"] = local_models
         print(json.dumps(payload, indent=2))
@@ -136,10 +146,17 @@ def main(argv: list[str] | None = None) -> int:
     print(f"RAM: {hardware.available_ram_gib:.2f} GiB available / {hardware.total_ram_gib:.2f} GiB total")
     if hardware.gpu_name:
         print(f"GPU: {hardware.gpu_name}; {hardware.free_vram_gib:.2f} GiB VRAM free")
+    elif target == "gpu":
+        if vram is None:
+            print("GPU: not detected (NVIDIA nvidia-smi only)")
+        else:
+            print(f"GPU: Simulated NVIDIA GPU; {vram:.2f} GiB VRAM free")
     else:
         print("GPU: not detected (NVIDIA nvidia-smi only; CPU fallback)")
     if simulated:
         print("SIMULATION: memory availability overridden by command-line values")
+    if target != "auto":
+        print(f"Fit target: {target.upper()}")
     if extra_memory:
         print(f"Extra memory allowance: {extra_memory:g} GiB")
     if command == "recommend" and not results:
