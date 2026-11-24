@@ -40,7 +40,7 @@ The `estimate` command also accepts a user-supplied download size and label, pas
 
 The `gguf` command supplies measured file sizes to the same estimator and uses a single hardware snapshot for all models. For split files it groups numbered siblings, checks each fixed header, and sums their sizes before estimation.
 
-The estimator converts decimal GB to GiB, adds the base overhead and optional user allowance, and compares unrounded values. The result includes signed RAM and VRAM margins. The CLI handles filtering and display rounding.
+The estimator converts decimal GB to GiB, adds the base overhead and optional user allowance, and compares unrounded values. The result includes signed RAM and VRAM margins. The estimator classifies fits for the selected CPU, GPU, or automatic target. The CLI handles target selection, shortlist filtering, and display rounding.
 
 ## Future expansion points
 Hardware backends can be added behind the detect_hardware interface. Estimators can become profile-driven or calibrated against opt-in benchmarks. Catalog sources can support explicit import/update commands without compromising default offline behavior. These are roadmap ideas, not implemented interfaces.

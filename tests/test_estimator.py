@@ -62,3 +62,21 @@ def test_fit_uses_full_precision_and_reports_shortfalls():
     assert result.status == "unlikely"
     assert -0.01 < result.ram_margin_gib < 0
     assert result.vram_margin_gib == result.ram_margin_gib
+
+
+@pytest.mark.parametrize(("target", "ram", "vram", "status", "reason"), [
+    ("cpu", 8, 8, "likely_cpu", "system RAM"),
+    ("cpu", 2, 8, "unlikely", "exceeds currently available system RAM"),
+    ("gpu", 8, 8, "likely_gpu", "free VRAM"),
+    ("gpu", 8, 2, "unlikely", "exceeds detected free VRAM"),
+    ("gpu", 8, None, "unlikely", "VRAM was not detected"),
+    ("gpu", 0.5, 8, "unlikely", "host RAM"),
+])
+def test_fit_target_classifies_only_the_selected_device(target, ram, vram, status, reason):
+    hardware = machine(ram=ram, vram=vram)
+    result = assess(MODEL, hardware, target=target)
+    automatic = assess(MODEL, hardware)
+    assert result.status == status
+    assert reason in result.reason
+    assert result.ram_margin_gib == automatic.ram_margin_gib
+    assert result.vram_margin_gib == automatic.vram_margin_gib

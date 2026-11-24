@@ -50,6 +50,7 @@ modelfit gguf "model-q4.gguf" "model-q8.gguf" --extra-memory-gib 1
 modelfit check qwen3:4b    # assess a specific model
 modelfit estimate 4.5 --name my-model  # estimate an unlisted model by download size (GB)
 modelfit recommend --fits-only --extra-memory-gib 1  # shortlist with 1 GiB extra allowance
+modelfit recommend --target gpu --fits-only  # shortlist models for full GPU inference
 modelfit recommend --json  # machine-readable JSON for scripts
 modelfit recommend --ram-gb 8 --vram-gb 6  # simulate available memory
 ~~~
@@ -77,6 +78,8 @@ This deliberately simple formula is **not** actual memory profiling. Runtime ove
 ## Read the result
 
 Each fit estimate reports RAM and VRAM margins. A positive margin is memory left after the estimate, a negative margin is the shortfall, and unknown VRAM is reported as `null` in JSON. A GPU fit also requires at least 1 GiB of available host RAM. `--fits-only` keeps both likely GPU and likely CPU fits.
+
+Use `--target cpu` or `--target gpu` with `recommend`, `check`, `estimate`, or `gguf` to evaluate a specific inference device. The GPU target checks free VRAM on a single supported GPU and the 1 GiB host RAM reserve. It returns `unlikely` if VRAM is unavailable or insufficient, even when the model could fit in system RAM. The CPU target bases the fit on system RAM. The default `--target auto` prefers a GPU fit and falls back to CPU. Both memory margins are still reported, and JSON adds a `target` field for explicit CPU or GPU targets.
 
 Use `--extra-memory-gib` with `recommend`, `check`, `estimate`, or `gguf` to add an allowance for your planned context or runtime. The allowance is a number you choose based on your workload.
 

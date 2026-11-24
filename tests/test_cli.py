@@ -147,6 +147,12 @@ def test_split_gguf_estimates_all_shards_once(tmp_path, monkeypatch, capsys):
     assert [shard["path"] for shard in model["shards"]] == [str(first), str(second)]
     assert result["download_gb"] == 5120 / 10**9
 
+    assert cli.main(["gguf", str(second), "--target", "gpu", "--json"]) == 0
+    gpu_report = json.loads(capsys.readouterr().out)
+    assert gpu_report["target"] == "gpu"
+    assert gpu_report["gguf_files"][0]["size_bytes"] == 5120
+    assert gpu_report["results"][0]["status"] == "unlikely"
+
     second.unlink()
     with pytest.raises(SystemExit) as exc:
         cli.main(["gguf", str(first), "--json"])
@@ -154,3 +160,29 @@ def test_split_gguf_estimates_all_shards_once(tmp_path, monkeypatch, capsys):
     captured = capsys.readouterr()
     assert second.name in captured.err
     assert not captured.out
+
+
+def test_gpu_shortlist_excludes_cpu_fallbacks(monkeypatch, capsys):
+    monkeypatch.setattr(cli, "detect_hardware", mock_machine)
+    args = ["recommend", "--fits-only", "--ram-gb", "8", "--vram-gb", "2", "--json"]
+    assert cli.main(args) == 0
+    automatic = json.loads(capsys.readouterr().out)
+    assert "target" not in automatic
+    assert any(row["status"] == "likely_cpu" for row in automatic["results"])
+
+    assert cli.main(args + ["--target", "gpu"]) == 0
+    gpu_only = json.loads(capsys.readouterr().out)
+    assert gpu_only["target"] == "gpu"
+    assert gpu_only["results"] == [
+        row for row in automatic["results"] if row["status"] == "likely_gpu"
+    ]
+    assert gpu_only["results"]
+
+
+@pytest.mark.parametrize("args", [["check", "qwen3:4b"], ["estimate", "2"]])
+def test_single_model_commands_honor_target(args, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "detect_hardware", mock_machine)
+    assert cli.main(args + ["--target", "cpu", "--vram-gb", "8"]) == 0
+    output = capsys.readouterr().out
+    assert "Fit target: CPU" in output
+    assert "likely_cpu" in output
