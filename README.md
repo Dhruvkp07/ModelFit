@@ -5,19 +5,11 @@
 [![Python tests](https://github.com/Dhruvkp07/ModelFit/actions/workflows/ci.yml/badge.svg)](https://github.com/Dhruvkp07/ModelFit/actions/workflows/ci.yml)
 [![Contributions welcome](https://img.shields.io/badge/Contributions-welcome-brightgreen)](CONTRIBUTING.md)
 
-**Check which local AI models may fit your computer.**
+**Check whether a local AI model is likely to fit your available RAM or GPU memory.**
 
-ModelFit is an open-source **local LLM hardware compatibility checker** for developers running AI models with **Ollama**. This lightweight Python CLI checks available system RAM and supported NVIDIA GPU VRAM, then estimates which local language models may fit. No API key or account is needed.
+ModelFit is an offline Python CLI for estimating the memory needed by Ollama catalog models, local GGUF files and custom model sizes. Get a terminal summary or JSON for scripts. The alpha uses a documented heuristic for memory fit. Use an actual inference run to measure speed and peak memory.
 
-**Status: v0.1 alpha.** ModelFit provides approximate **memory-fit guidance**, not verified benchmarks, model quality rankings, tokens/second predictions, or guarantees.
-
-## Why ModelFit?
-
-- **Local AI readiness:** compare your computer's available RAM and VRAM with a sourced catalog of Ollama models.
-- **Developer-friendly CLI:** use readable terminal output or JSON in scripts.
-- **Community-driven:** contribute hardware backends, model records, documentation, and tests.
-
-ModelFit is not affiliated with or endorsed by Ollama. Compatibility results are estimates, not benchmark guarantees.
+[Quick start](#quick-start) · [Commands](#commands) · [Fit decision](#how-recommendations-work) · [Contributing](CONTRIBUTING.md)
 
 ## Quick start
 
@@ -66,6 +58,26 @@ Pass one or more local GGUF paths to `modelfit gguf`. Each model gets its own es
 For a split model, pass any shard, for example `modelfit gguf "model-00002-of-00003.gguf"`. ModelFit finds the other numbered shards in the same folder and estimates their combined size once. Missing shards stop the estimate. JSON includes the individual shard paths and sizes. Grouping follows the [GGUF filename convention](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md), and header checks catch basic format errors. Runtime compatibility depends on your inference engine.
 
 ## How recommendations work
+
+~~~mermaid
+flowchart TD
+  CATALOG["Ollama catalog size"] --> EST["Estimate working memory"]
+  GGUF["Local GGUF file sizes"] --> EST
+  CUSTOM["User-supplied download size"] --> EST
+  HW["Available RAM and NVIDIA free VRAM"] --> FIT{"Compare against the selected target"}
+  EST --> FIT
+  FIT -->|Single GPU fits and RAM reserve passes| GPU["likely_gpu"]
+  FIT -->|CPU allowed and RAM fits| CPU["likely_cpu"]
+  FIT -->|No allowed target fits| MISS["unlikely"]
+  classDef source fill:#e1edff,stroke:#386cc0,color:#172d4d,stroke-width:2px
+  classDef process fill:#efe6ff,stroke:#8156b6,color:#35234c,stroke-width:2px
+  classDef good fill:#d8f5eb,stroke:#16846c,color:#102a26,stroke-width:2px
+  classDef shortfall fill:#fde9e6,stroke:#b45143,color:#4b231d,stroke-width:2px
+  class CATALOG,GGUF,CUSTOM,HW source
+  class EST,FIT process
+  class GPU,CPU good
+  class MISS shortfall
+~~~
 
 1. Read currently available system RAM using psutil.
 2. Query NVIDIA GPU free VRAM using nvidia-smi when available. Multiple GPUs are evaluated individually; their memory is **not** added.
