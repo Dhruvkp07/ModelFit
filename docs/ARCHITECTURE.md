@@ -7,10 +7,12 @@ flowchart TD
     U[User / CLI] --> C[cli.py]
     C --> H[hardware.py]
     C --> L[catalog.py]
+    C --> A[ollama.py]
     C --> E[estimator.py]
     H --> P[psutil system RAM]
     H --> N[nvidia-smi optional]
     L --> J[data/models.json]
+    A --> I[Local Ollama model list]
     E --> H
     E --> L
     C --> O[Terminal or JSON output]
@@ -28,6 +30,7 @@ flowchart TD
 | src/modelfit/catalog.py | Load and validate versioned bundled metadata | Changing catalog schema |
 | src/modelfit/data/models.json | Named, sourced Ollama model sizes | Updating model listings |
 | src/modelfit/gguf.py | Read the local file size and check the fixed GGUF header | Adding format checks |
+| src/modelfit/ollama.py | Read and validate installed model sizes from the local Ollama API | Changing installed model discovery |
 | src/modelfit/estimator.py | Estimate memory and classify fits | Changing estimation logic |
 | tests/ | Test simulated devices and parser behavior | Any behavior change |
 | docs/PROJECT_STATE.md | Living decisions, progress, next steps | Every work session |
@@ -39,6 +42,8 @@ Hardware probe and bundled catalog feed the estimator. The CLI formats the resul
 The `estimate` command also accepts a user-supplied download size and label, passing them to the same estimator without changing the bundled catalog or contacting a registry.
 
 The `gguf` command supplies measured file sizes to the same estimator and uses a single hardware snapshot for all models. For split files it groups numbered siblings, checks each fixed header, and sums their sizes before estimation.
+
+The `installed` command reads `GET /api/tags` over IPv4 loopback and converts the local models' on-disk byte counts to decimal GB for the estimator. It skips remote entries and uses one hardware snapshot for all results. The CLI exposes the original byte count in JSON and reuses the catalog recommendation order and fit filter.
 
 The estimator converts decimal GB to GiB, adds the base overhead and optional user allowance, and compares unrounded values. The result includes signed RAM and VRAM margins. The estimator classifies fits for the selected CPU, GPU, or automatic target. The CLI handles target selection, shortlist filtering, and display rounding.
 
