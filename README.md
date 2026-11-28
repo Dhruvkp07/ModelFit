@@ -7,7 +7,7 @@
 
 **Check whether a local AI model is likely to fit your available RAM or GPU memory.**
 
-ModelFit is an offline Python CLI for estimating the memory needed by Ollama catalog models, local GGUF files and custom model sizes. Get a terminal summary or JSON for scripts. The alpha uses a documented heuristic for memory fit. Use an actual inference run to measure speed and peak memory.
+ModelFit is a Python CLI that works offline and estimates memory for installed Ollama models, bundled catalog models, local GGUF files, and custom model sizes. Get a terminal summary or JSON for scripts. The alpha uses a documented heuristic for memory fit. Use an actual inference run to measure speed and peak memory.
 
 [Quick start](#quick-start) · [Commands](#commands) · [Fit decision](#how-recommendations-work) · [Contributing](CONTRIBUTING.md)
 
@@ -38,6 +38,7 @@ pip install --upgrade --force-reinstall "git+https://github.com/Dhruvkp07/ModelF
 modelfit                   # scan hardware and recommend models
 modelfit scan              # show hardware only
 modelfit models            # show the included public model catalog
+modelfit installed         # assess models already downloaded in local Ollama
 modelfit gguf "model-q4.gguf" "model-q8.gguf" --extra-memory-gib 1
 modelfit check qwen3:4b    # assess a specific model
 modelfit estimate 4.5 --name my-model  # estimate an unlisted model by download size (GB)
@@ -51,6 +52,20 @@ modelfit recommend --ram-gb 8 --vram-gb 6  # simulate available memory
 
 For models outside the catalog, `estimate` uses the download size you supply in decimal GB. It does not verify the model, its quantization, or its source; the same rough heuristic and limitations apply.
 
+## Check models already installed in Ollama
+
+Open the Ollama app or start `ollama serve`, then run:
+
+~~~bash
+modelfit installed
+modelfit installed qwen3:4b --target gpu
+modelfit installed --target gpu --fits-only --json
+~~~
+
+The command reads [Ollama's local model list](https://docs.ollama.com/api/tags) at `127.0.0.1:11434`, uses the reported on-disk sizes, and skips remote model entries. This includes custom tags that are absent from the bundled catalog. Use `--port` for a different local Ollama port, and pass an exact tag from `modelfit installed` to check a single model. JSON results include `size_bytes` alongside the fit estimate.
+
+ModelFit only reads inventory metadata. It does not download or load models. If a model is already running, its memory use reduces the free memory available for the estimate.
+
 ## Compare local GGUF files
 
 Pass one or more local GGUF paths to `modelfit gguf`. Each model gets its own estimate in input order, which lets you compare quantizations against the same hardware snapshot. The command uses the on-disk byte count and checks the fixed GGUF v2/v3 header. It reads no tensor weights. Add `--json` to capture the file details and fit results.
@@ -62,6 +77,7 @@ For a split model, pass any shard, for example `modelfit gguf "model-00002-of-00
 ~~~mermaid
 flowchart TD
   CATALOG["Ollama catalog size"] --> EST["Estimate working memory"]
+  INSTALLED["Installed Ollama model sizes"] --> EST
   GGUF["Local GGUF file sizes"] --> EST
   CUSTOM["User-supplied download size"] --> EST
   HW["Available RAM and NVIDIA free VRAM"] --> FIT{"Compare against the selected target"}
@@ -73,7 +89,7 @@ flowchart TD
   classDef process fill:#efe6ff,stroke:#8156b6,color:#35234c,stroke-width:2px
   classDef good fill:#d8f5eb,stroke:#16846c,color:#102a26,stroke-width:2px
   classDef shortfall fill:#fde9e6,stroke:#b45143,color:#4b231d,stroke-width:2px
-  class CATALOG,GGUF,CUSTOM,HW source
+  class CATALOG,INSTALLED,GGUF,CUSTOM,HW source
   class EST,FIT process
   class GPU,CPU good
   class MISS shortfall
@@ -81,7 +97,7 @@ flowchart TD
 
 1. Read currently available system RAM using psutil.
 2. Query NVIDIA GPU free VRAM using nvidia-smi when available. Multiple GPUs are evaluated individually; their memory is **not** added.
-3. Read the versioned model catalog (official Ollama download-size listings, snapshot 2026-11-20).
+3. Read the model size from the selected source. The bundled catalog uses official Ollama listings from its 2026-11-20 snapshot.
 4. Estimate working memory with an explicit starter heuristic: **download size converted to GiB × 1.2 + 0.75 GiB + optional extra allowance**.
 5. Classify as **likely_gpu**, **likely_cpu**, or **unlikely**, based on currently available memory.
 
@@ -91,9 +107,9 @@ This deliberately simple formula is **not** actual memory profiling. Runtime ove
 
 Each fit estimate reports RAM and VRAM margins. A positive margin is memory left after the estimate, a negative margin is the shortfall, and unknown VRAM is reported as `null` in JSON. A GPU fit also requires at least 1 GiB of available host RAM. `--fits-only` keeps both likely GPU and likely CPU fits.
 
-Use `--target cpu` or `--target gpu` with `recommend`, `check`, `estimate`, or `gguf` to evaluate a specific inference device. The GPU target checks free VRAM on a single supported GPU and the 1 GiB host RAM reserve. It returns `unlikely` if VRAM is unavailable or insufficient, even when the model could fit in system RAM. The CPU target bases the fit on system RAM. The default `--target auto` prefers a GPU fit and falls back to CPU. Both memory margins are still reported, and JSON adds a `target` field for explicit CPU or GPU targets.
+Use `--target cpu` or `--target gpu` with `recommend`, `check`, `estimate`, `gguf`, or `installed` to evaluate a specific inference device. The GPU target checks free VRAM on a single supported GPU and the 1 GiB host RAM reserve. It returns `unlikely` if VRAM is unavailable or insufficient, even when the model could fit in system RAM. The CPU target bases the fit on system RAM. The default `--target auto` prefers a GPU fit and falls back to CPU. Both memory margins are still reported, and JSON adds a `target` field for explicit CPU or GPU targets.
 
-Use `--extra-memory-gib` with `recommend`, `check`, `estimate`, or `gguf` to add an allowance for your planned context or runtime. The allowance is a number you choose based on your workload.
+Use `--extra-memory-gib` with `recommend`, `check`, `estimate`, `gguf`, or `installed` to add an allowance for your planned context or runtime. The allowance is a number you choose based on your workload.
 
 ## Contribute
 

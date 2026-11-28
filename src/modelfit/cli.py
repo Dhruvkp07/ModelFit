@@ -11,6 +11,7 @@ from .catalog import load_catalog
 from .estimator import assess, recommend
 from .gguf import gguf_model_key, inspect_gguf_model
 from .hardware import detect_hardware
+from .ollama import DEFAULT_PORT, load_installed_models
 
 DISCLAIMER = (
     "Estimates only. Download size is not runtime memory; context length, "
@@ -25,13 +26,22 @@ def build_parser() -> argparse.ArgumentParser:
         description="Check which local Ollama models might fit your computer.",
     )
     sub = parser.add_subparsers(dest="command")
-    for name in ("recommend", "scan", "check", "models", "estimate", "gguf"):
-        command = sub.add_parser(name)
+    commands = {
+        "recommend": "Compare models in the bundled catalog",
+        "scan": "Show available system RAM and GPU memory",
+        "check": "Assess one catalog model",
+        "models": "List models in the bundled catalog",
+        "estimate": "Assess a model by download size",
+        "gguf": "Assess local GGUF files",
+        "installed": "Assess models installed in local Ollama",
+    }
+    for name, help_text in commands.items():
+        command = sub.add_parser(name, help=help_text)
         command.add_argument("--json", action="store_true", help="Machine-readable output")
-        if name in ("recommend", "scan", "check", "estimate", "gguf"):
+        if name != "models":
             command.add_argument("--ram-gb", type=float, help="Override available RAM (GiB)")
             command.add_argument("--vram-gb", type=float, help="Override free VRAM (GiB)")
-        if name in ("recommend", "check", "estimate", "gguf"):
+        if name not in ("models", "scan"):
             command.add_argument(
                 "--target", choices=("auto", "cpu", "gpu"), default="auto",
                 help="Evaluate CPU or full-GPU inference only (default: auto)",
@@ -40,7 +50,7 @@ def build_parser() -> argparse.ArgumentParser:
                 "--extra-memory-gib", type=float, default=0,
                 help="Add a memory allowance in GiB for your runtime or context",
             )
-        if name == "recommend":
+        if name in ("recommend", "installed"):
             command.add_argument("--fits-only", action="store_true", help="Hide unlikely fits")
         if name == "check":
             command.add_argument("model", help="Exact model tag, e.g. qwen3:4b")
@@ -49,6 +59,12 @@ def build_parser() -> argparse.ArgumentParser:
             command.add_argument("--name", default="custom model", help="Label for this estimate")
         if name == "gguf":
             command.add_argument("files", type=Path, nargs="+", help="Local GGUF models or any shard of a split model")
+        if name == "installed":
+            command.add_argument("model", nargs="?", help="Exact installed model tag (default: all)")
+            command.add_argument(
+                "--port", type=int, default=DEFAULT_PORT,
+                help=f"Local Ollama HTTP port (default: {DEFAULT_PORT})",
+            )
     return parser
 
 
@@ -77,6 +93,22 @@ def main(argv: list[str] | None = None) -> int:
     extra_memory = getattr(args, "extra_memory_gib", 0)
     if not math.isfinite(extra_memory) or extra_memory < 0:
         parser.error("Extra memory must be finite and zero or positive.")
+
+    installed_models = []
+    if command == "installed":
+        if not 1 <= args.port <= 65535:
+            parser.error("Ollama port must be between 1 and 65535.")
+        try:
+            installed_models = load_installed_models(args.port)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if args.model is not None:
+            installed_models = [m for m in installed_models if m["name"].lower() == args.model.lower()]
+            if not installed_models:
+                list_command = "modelfit installed"
+                if args.port != DEFAULT_PORT:
+                    list_command += f" --port {args.port}"
+                parser.error(f"Local Ollama model {args.model!r} was not found. Run '{list_command}' to see tags.")
 
     local_models = []
     if command == "gguf":
@@ -109,8 +141,9 @@ def main(argv: list[str] | None = None) -> int:
         if not matches:
             parser.error("Unknown model tag. Run 'modelfit models' for supported tags.")
         results = [assess(matches[0], hardware, extra_memory_gib=extra_memory, target=target)]
-    elif command == "recommend":
-        results = recommend(load_catalog(), hardware, extra_memory_gib=extra_memory, target=target)
+    elif command in ("recommend", "installed"):
+        models = installed_models if command == "installed" else load_catalog()
+        results = recommend(models, hardware, extra_memory_gib=extra_memory, target=target)
         if getattr(args, "fits_only", False):
             results = [item for item in results if item.status != "unlikely"]
     elif command == "estimate":
@@ -125,12 +158,17 @@ def main(argv: list[str] | None = None) -> int:
             for model in local_models
         ]
 
+    installed_sizes = {model["name"]: model["size_bytes"] for model in installed_models}
     if json_mode:
+        result_rows = [r.to_dict() for r in results]
+        if command == "installed":
+            for row in result_rows:
+                row["size_bytes"] = installed_sizes[row["name"]]
         payload = {
             "hardware": hardware.to_dict(),
             "simulated": simulated,
             "extra_memory_gib": extra_memory,
-            "results": [r.to_dict() for r in results],
+            "results": result_rows,
             "disclaimer": DISCLAIMER,
         }
         if target != "auto":
@@ -161,6 +199,11 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Extra memory allowance: {extra_memory:g} GiB")
     if command == "recommend" and not results:
         print("No catalog models matched the selected fit filter.")
+    if command == "installed" and not results:
+        if installed_models:
+            print("No installed Ollama models matched the selected fit filter.")
+        else:
+            print("Ollama reported no locally installed models.")
     if results:
         print()
         for index, item in enumerate(results):
@@ -177,7 +220,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"{item.name:<20} {item.estimated_memory_gib:>6.2f} GiB "
                 f"{item.status:<12} {item.reason}"
             )
-            print(f"  Memory margin: RAM {item.ram_margin_gib:+.2f} GiB, VRAM {vram_margin}")
+            margin = f"Memory margin: RAM {item.ram_margin_gib:+.2f} GiB, VRAM {vram_margin}"
+            if command == "installed":
+                margin += f" | Disk: {item.download_gb:.2f} GB"
+            print(f"  {margin}")
     print()
     print(DISCLAIMER)
     return 0
